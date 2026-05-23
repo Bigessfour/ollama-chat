@@ -17,8 +17,9 @@ module "networking" {
   vpc_cidr             = var.vpc_cidr
   public_subnet_cidrs  = var.public_subnet_cidrs
   private_subnet_cidrs = var.private_subnet_cidrs
-  single_nat_gateway   = var.single_nat_gateway
-  tags                 = local.common_tags
+  single_nat_gateway         = var.single_nat_gateway
+  enable_ssh_between_tiers   = var.enable_ssh_between_tiers
+  tags                       = local.common_tags
 }
 
 module "security" {

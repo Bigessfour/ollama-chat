@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-05-23
+
+### Added
+
+- Flask launch template **30 GB gp3** root volume for Ollama model storage (Module 1 requirement ≥ 20 GB)
+- Private NACL rules **104–105** for SSH (React → Flask) when `enable_ssh_between_tiers` is enabled
+- `infrastructure/scripts/verify-deployment.sh` for post-deploy curl checks
+- Terraform output `debug_ssh_hint` for tier debugging
+- Code Platoon Module 1 traceability and checklist in [docs/SUBMISSION.md](docs/SUBMISSION.md)
+
+### Changed
+
+- `enable_ssh_between_tiers` default **true** (challenge success criteria); SSM Session Manager still recommended for React access
+- `deploy-aws.sh`: Flask 30 GB EBS, SSH SG/NACL rules aligned with Terraform
+
 ## [1.0.0] - 2025-05-23
 
 ### Added

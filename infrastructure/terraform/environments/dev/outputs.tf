@@ -62,3 +62,12 @@ output "post_apply_commands" {
     curl http://${module.alb.alb_dns_name}/api/ready
   EOT
 }
+
+output "debug_ssh_hint" {
+  description = "How to reach Flask from React for Code Platoon debugging."
+  value       = <<-EOT
+    1. AWS Console → Systems Manager → Session Manager → start session on a React instance.
+    2. On the React host: aws ec2 describe-instances --filters Name=tag:Tier,Values=backend --query 'Reservations[].Instances[].PrivateIpAddress' --output text
+    3. ssh ec2-user@<flask-private-ip>   (requires enable_ssh_between_tiers = true)
+  EOT
+}

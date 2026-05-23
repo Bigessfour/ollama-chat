@@ -189,7 +189,7 @@ Create in the VPC:
 |------|---------|
 | `ollama-chat-alb-sg` | TCP 80, 443 from `0.0.0.0/0` |
 | `ollama-chat-react-sg` | TCP 80 from `ollama-chat-alb-sg` |
-| `ollama-chat-flask-sg` | TCP 5000 from `ollama-chat-alb-sg`; optional TCP 22 from `ollama-chat-react-sg` only if `enable_ssh_between_tiers = true` (default **false**) |
+| `ollama-chat-flask-sg` | TCP 5000 from `ollama-chat-alb-sg`; TCP 22 from `ollama-chat-react-sg` when `enable_ssh_between_tiers = true` (default **true**) |
 
 ### 2.4 IAM and SSM
 
@@ -424,7 +424,7 @@ infrastructure/terraform/
 | Private subnet NACLs | Yes (deny 11434) | Yes (mirrors Terraform) |
 | Tier IAM roles | `ollama-chat-flask-ec2-role` + `ollama-chat-react-ec2-role` | Single `ollama-chat-ec2-ssm-role` (legacy) |
 | API key in SSM | Optional via `TF_VAR_api_key` | Not created |
-| SSH between tiers | `enable_ssh_between_tiers` default **false** | Not created |
+| SSH between tiers | `enable_ssh_between_tiers` default **true** | SG + NACL :22 from private CIDRs |
 | IMDSv2 required | Launch templates | Launch templates |
 | Idempotent deploy | Yes (state) | **No** — duplicate stacks on re-run |
 | PAT / secrets | `TF_VAR_ghcr_pat` → SSM | `GHCR_PAT` env (exits if unset) |

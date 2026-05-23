@@ -113,7 +113,7 @@ flowchart LR
 | `ollama-chat-alb-sg` | TCP 80, 443 from `0.0.0.0/0` | Public ALB |
 | `ollama-chat-react-sg` | TCP 80 from `ollama-chat-alb-sg` | nginx only from ALB |
 | `ollama-chat-flask-sg` | TCP 5000 from `ollama-chat-alb-sg` | Gunicorn from ALB |
-| `ollama-chat-flask-sg` | TCP 22 from `ollama-chat-react-sg` | **Optional** — only when `enable_ssh_between_tiers = true` (Terraform default: **false**) |
+| `ollama-chat-flask-sg` | TCP 22 from `ollama-chat-react-sg` | When `enable_ssh_between_tiers = true` (Terraform default: **true**) |
 
 Port **11434** (Ollama) is intentionally absent from all security groups.
 
@@ -125,6 +125,7 @@ Port **11434** (Ollama) is intentionally absent from all security groups.
 |--------|-----------|--------|-------|------|---------|
 | 50 | Inbound | **Deny** | TCP 11434 | `0.0.0.0/0` | Defense in depth — Ollama binds `127.0.0.1` only |
 | 100–103 | Inbound | Allow | TCP 80, 5000 | Public subnet CIDRs (`10.0.1.0/24`, `10.0.2.0/24`) | ALB health checks and forwarded traffic |
+| 104–105 | Inbound | Allow | TCP 22 | Private subnet CIDRs (`10.0.10.0/24`, `10.0.11.0/24`) | React → Flask SSH (when `enable_ssh_between_tiers`) |
 | 110 | Inbound | Allow | TCP 1024–65535 | VPC CIDR (`10.0.0.0/16`) | Ephemeral return traffic within the VPC |
 | 100 | Outbound | Allow | All | `0.0.0.0/0` | NAT egress (GHCR, package repos, Ollama CDN) |
 
@@ -139,7 +140,7 @@ Misconfigured NACLs are a common cause of unhealthy target groups when rules div
 | ALB | `ollama-chat-alb` | Layer 7 load balancer in public subnets |
 | Flask target group | `ollama-chat-flask-tg` | HTTP:5000, health `/api/ready` |
 | React target group | `ollama-chat-react-tg` | HTTP:80, health `/` |
-| Flask launch template | `ollama-chat-flask-lt` | `t3.large`, Amazon Linux 2023 |
+| Flask launch template | `ollama-chat-flask-lt` | `t3.large`, Amazon Linux 2023, **30 GB gp3** root volume (Ollama models) |
 | React launch template | `ollama-chat-react-lt` | `t3.small`, Amazon Linux 2023 |
 | Flask ASG | `ollama-chat-flask-asg` | Min 2, max 4, desired 2; private subnets; ELB health check; grace **600s** |
 | React ASG | `ollama-chat-react-asg` | Min 2, max 4, desired 2; private subnets; ELB health check; grace **300s** |
@@ -251,7 +252,7 @@ sequenceDiagram
 | Secrets | SSM SecureString only | `/ollama-chat/ghcr-pat`; optional `/ollama-chat/api-key` — never in user-data files |
 | IAM (Terraform) | Split roles per tier | `ollama-chat-flask-ec2-role` (+ api-key param when set); `ollama-chat-react-ec2-role` (PAT only); `ssm:GetParameter` single-ARN scope |
 | IAM (bash deploy) | Legacy shared role | `ollama-chat-ec2-ssm-role` for both tiers — prefer Terraform for least privilege |
-| Management | SSM Session Manager | `enable_ssh_between_tiers` default **false** (no Flask :22 from React) |
+| Management | SSM Session Manager; optional React→Flask SSH | `enable_ssh_between_tiers` default **true** |
 | Metadata | IMDSv2 required | Launch templates set `HttpTokens: required`; user-data uses token-based IMDS |
 | Flask | Headers, `compare_digest` API key, CORS guardrails | CSP, HSTS when `X-Forwarded-Proto: https`; `APP_ENV=production`; optional `REQUIRE_API_KEY_IN_PRODUCTION` |
 | User-data | Idempotent bootstrap | Marker files under `/var/lib/ollama-chat/`; re-boot restarts containers |

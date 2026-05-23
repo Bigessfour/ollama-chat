@@ -79,6 +79,11 @@ aws ec2 create-network-acl-entry --network-acl-id "$PRIVATE_NACL" --rule-number 
   --protocol tcp --port-range From=5000,To=5000 --cidr-block 10.0.1.0/24 --ingress --rule-action allow
 aws ec2 create-network-acl-entry --network-acl-id "$PRIVATE_NACL" --rule-number 103 \
   --protocol tcp --port-range From=5000,To=5000 --cidr-block 10.0.2.0/24 --ingress --rule-action allow
+# SSH from private subnets (React tier → Flask tier debugging)
+aws ec2 create-network-acl-entry --network-acl-id "$PRIVATE_NACL" --rule-number 104 \
+  --protocol tcp --port-range From=22,To=22 --cidr-block 10.0.10.0/24 --ingress --rule-action allow
+aws ec2 create-network-acl-entry --network-acl-id "$PRIVATE_NACL" --rule-number 105 \
+  --protocol tcp --port-range From=22,To=22 --cidr-block 10.0.11.0/24 --ingress --rule-action allow
 aws ec2 create-network-acl-entry --network-acl-id "$PRIVATE_NACL" --rule-number 110 \
   --protocol tcp --port-range From=1024,To=65535 --cidr-block 10.0.0.0/16 --ingress --rule-action allow
 aws ec2 create-network-acl-entry --network-acl-id "$PRIVATE_NACL" --rule-number 100 \
@@ -104,6 +109,7 @@ aws ec2 authorize-security-group-ingress --group-id "$REACT_SG" --protocol tcp -
 FLASK_SG=$(aws ec2 create-security-group --group-name ollama-chat-flask-sg \
   --description "Flask backend for ollama-chat" --vpc-id "$VPC_ID" --query GroupId --output text)
 aws ec2 authorize-security-group-ingress --group-id "$FLASK_SG" --protocol tcp --port 5000 --source-group "$ALB_SG"
+aws ec2 authorize-security-group-ingress --group-id "$FLASK_SG" --protocol tcp --port 22 --source-group "$REACT_SG"
 
 # --- IAM ---
 ROLE_NAME=ollama-chat-ec2-ssm-role
@@ -181,6 +187,15 @@ cat > "$FLASK_LT_JSON" <<EOF
   "IamInstanceProfile": {"Name": "$ROLE_NAME"},
   "SecurityGroupIds": ["$FLASK_SG"],
   "UserData": "$FLASK_UD_B64",
+  "BlockDeviceMappings": [{
+    "DeviceName": "/dev/xvda",
+    "Ebs": {
+      "VolumeSize": 30,
+      "VolumeType": "gp3",
+      "DeleteOnTermination": true,
+      "Encrypted": true
+    }
+  }],
   "MetadataOptions": {
     "HttpTokens": "required",
     "HttpPutResponseHopLimit": 1

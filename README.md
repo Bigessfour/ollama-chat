@@ -292,7 +292,7 @@ See **[SECURITY.md](SECURITY.md)** for the threat model, hardening checklist, se
 | Flask hardening | CSP/HSTS (behind HTTPS), production CORS validation, rate limits, optional `REQUIRE_API_KEY_IN_PRODUCTION` |
 | EC2 metadata | IMDSv2 required on launch templates |
 | User-data | Idempotent; secrets from SSM only; Docker `--cap-drop=ALL` |
-| Management | SSM Session Manager; `enable_ssh_between_tiers` default **false** (Terraform) |
+| Management | SSM Session Manager; optional React→Flask SSH (`enable_ssh_between_tiers` default **true**) |
 
 **Remaining gaps:** HTTP-only ALB (no TLS/WAF by default), in-memory rate limits at scale. Legacy `deploy-aws.sh` still uses a single shared EC2 IAM role.
 

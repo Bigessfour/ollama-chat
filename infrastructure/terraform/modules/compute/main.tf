@@ -35,6 +35,17 @@ resource "aws_launch_template" "flask" {
 
   user_data = var.flask_user_data
 
+  block_device_mappings {
+    device_name = "/dev/xvda"
+
+    ebs {
+      volume_size           = var.flask_root_volume_size_gb
+      volume_type           = "gp3"
+      delete_on_termination = true
+      encrypted             = true
+    }
+  }
+
   tag_specifications {
     resource_type = "instance"
     tags = merge(local.common_tags, {

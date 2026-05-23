@@ -180,6 +180,32 @@ resource "aws_network_acl_rule" "private_inbound_flask_az2" {
   to_port        = 5000
 }
 
+resource "aws_network_acl_rule" "private_inbound_ssh_az1" {
+  count = var.enable_ssh_between_tiers ? 1 : 0
+
+  network_acl_id = aws_network_acl.private.id
+  rule_number    = 104
+  egress         = false
+  protocol       = "tcp"
+  rule_action    = "allow"
+  cidr_block     = var.private_subnet_cidrs[0]
+  from_port      = 22
+  to_port        = 22
+}
+
+resource "aws_network_acl_rule" "private_inbound_ssh_az2" {
+  count = var.enable_ssh_between_tiers && length(var.private_subnet_cidrs) > 1 ? 1 : 0
+
+  network_acl_id = aws_network_acl.private.id
+  rule_number    = 105
+  egress         = false
+  protocol       = "tcp"
+  rule_action    = "allow"
+  cidr_block     = var.private_subnet_cidrs[1]
+  from_port      = 22
+  to_port        = 22
+}
+
 resource "aws_network_acl_rule" "private_inbound_ephemeral" {
   network_acl_id = aws_network_acl.private.id
   rule_number    = 110

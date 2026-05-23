@@ -32,6 +32,12 @@ variable "single_nat_gateway" {
   default     = true
 }
 
+variable "enable_ssh_between_tiers" {
+  type        = bool
+  description = "Allow SSH (TCP 22) from private subnet CIDRs for React-to-Flask debugging."
+  default     = true
+}
+
 variable "tags" {
   type        = map(string)
   description = "Common tags applied to all resources."

@@ -117,7 +117,7 @@ infrastructure/terraform/
 | `vpc_cidr` | `10.0.0.0/16` | VPC CIDR |
 | `single_nat_gateway` | `true` | One NAT (cost) vs NAT per AZ (HA) |
 | `flask_asg_min` | `2` | Flask ASG minimum size |
-| `enable_ssh_between_tiers` | `false` | Flask :22 from React SG — keep **false**; use SSM Session Manager |
+| `enable_ssh_between_tiers` | `true` | Flask :22 from React SG + NACL; use SSM Session Manager to reach React first |
 
 See [environments/dev/variables.tf](environments/dev/variables.tf) for the full list.
 
@@ -191,7 +191,7 @@ This stack follows current AWS guidance. Each row maps Terraform resources to do
 | API key SSM | Optional `api_key` / `TF_VAR_api_key` | Not created |
 | IMDSv2 | Required on launch templates | Required |
 | Idempotent apply | Yes | **No** |
-| SSH between tiers | `enable_ssh_between_tiers` default **false** | Not created |
+| SSH between tiers | `enable_ssh_between_tiers` default **true** | SG + NACL :22 from private CIDRs |
 | Flask health check | `/api/ready` | `/api/ready` |
 | React container port | Host 80 → 8080 (user-data) | Same |
 | Resource names | `ollama-chat-*` | `ollama-chat-*` |
