@@ -25,9 +25,9 @@ jobs:
       run:
         working-directory: backend
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
@@ -49,9 +49,9 @@ jobs:
       run:
         working-directory: backend
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
@@ -67,7 +67,7 @@ jobs:
             -v \
             --cov-report=term-missing
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: backend-test-results
@@ -76,7 +76,7 @@ jobs:
             backend/coverage.xml
           retention-days: 14
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: backend-coverage
@@ -90,9 +90,9 @@ jobs:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -111,9 +111,9 @@ jobs:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -125,7 +125,7 @@ jobs:
       - name: Vitest with coverage
         run: npm run test:coverage
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: frontend-coverage
@@ -140,9 +140,9 @@ jobs:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -156,7 +156,7 @@ jobs:
           VITE_API_URL: http://localhost
         run: npm run build
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: frontend-dist
           path: frontend/dist/
@@ -170,9 +170,9 @@ jobs:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -187,7 +187,7 @@ jobs:
       - name: Playwright tests
         run: npm run test:e2e
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: playwright-report
@@ -206,7 +206,7 @@ jobs:
           - component: frontend
             scan-path: frontend
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Trivy filesystem scan (${{ matrix.component }})
         uses: aquasecurity/trivy-action@v0.36.0
@@ -219,7 +219,7 @@ jobs:
           ignore-unfixed: true
 
       - name: Upload Trivy SARIF
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always()
         continue-on-error: true
         with:
