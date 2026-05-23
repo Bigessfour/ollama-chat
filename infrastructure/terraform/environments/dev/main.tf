@@ -7,6 +7,25 @@ locals {
 
   user_data_path = "${path.module}/../../../user-data"
   cors_origins   = "http://${module.alb.alb_dns_name}"
+
+  # file() + replace() avoids templatefile interpreting bash ${TOKEN:-} etc.
+  flask_user_data_script = replace(
+    replace(
+      replace(
+        file("${local.user_data_path}/flask.sh"),
+        "$${ghcr_username}", var.ghcr_username
+      ),
+      "$${cors_origins}", local.cors_origins
+    ),
+    "$${backend_image}", var.backend_image
+  )
+  react_user_data_script = replace(
+    replace(
+      file("${local.user_data_path}/react.sh"),
+      "$${ghcr_username}", var.ghcr_username
+    ),
+    "$${frontend_image}", var.frontend_image
+  )
 }
 
 module "networking" {
@@ -51,7 +70,8 @@ module "alb" {
   environment           = var.environment
   vpc_id                = module.networking.vpc_id
   public_subnet_ids     = module.networking.public_subnet_ids
-  alb_security_group_id = module.security.alb_sg_id
+  alb_security_group_id   = module.security.alb_sg_id
+  flask_health_check_path = var.flask_health_check_path
   tags                  = local.common_tags
 }
 
@@ -67,15 +87,8 @@ module "compute" {
   react_instance_profile_name     = module.iam.react_instance_profile_name
   flask_target_group_arn          = module.alb.flask_target_group_arn
   react_target_group_arn          = module.alb.react_target_group_arn
-  flask_user_data                 = base64encode(templatefile("${local.user_data_path}/flask.sh", {
-    ghcr_username = var.ghcr_username
-    cors_origins  = local.cors_origins
-    backend_image = var.backend_image
-  }))
-  react_user_data = base64encode(templatefile("${local.user_data_path}/react.sh", {
-    ghcr_username  = var.ghcr_username
-    frontend_image = var.frontend_image
-  }))
+  flask_user_data                 = base64encode(local.flask_user_data_script)
+  react_user_data                 = base64encode(local.react_user_data_script)
   flask_instance_type             = var.flask_instance_type
   react_instance_type             = var.react_instance_type
   flask_asg_min                   = var.flask_asg_min

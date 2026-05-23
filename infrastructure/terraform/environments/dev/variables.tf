@@ -4,6 +4,12 @@ variable "aws_region" {
   default     = "us-east-1"
 }
 
+variable "aws_profile" {
+  type        = string
+  description = "Optional AWS CLI profile. Leave null to use env vars or default credential chain."
+  default     = null
+}
+
 variable "project_name" {
   type        = string
   description = "Project name prefix for resources."
@@ -97,6 +103,12 @@ variable "flask_asg_desired" {
 variable "flask_asg_max" {
   type    = number
   default = 4
+}
+
+variable "flask_health_check_path" {
+  type        = string
+  description = "ALB target group health path for Flask (use /api/health if /api/ready is unavailable on deployed image)."
+  default     = "/api/health"
 }
 
 variable "flask_health_check_grace_period" {

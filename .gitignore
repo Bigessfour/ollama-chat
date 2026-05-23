@@ -25,6 +25,9 @@ frontend/dist/
 
 # AWS / Terraform
 .aws-deploy-state
+
+# Terraform secrets (use terraform.tfvars.example + TF_VAR_*)
+infrastructure/terraform/environments/**/terraform.tfvars
 **/.terraform/
 **/.terraform.lock.hcl
 *.tfstate

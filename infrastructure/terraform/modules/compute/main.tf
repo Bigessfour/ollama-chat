@@ -16,7 +16,7 @@ locals {
 }
 
 resource "aws_launch_template" "flask" {
-  name_prefix   = "${var.project_name}-flask-"
+  name          = "${var.project_name}-flask-lt"
   image_id      = data.aws_ssm_parameter.al2023_ami.value
   instance_type = var.flask_instance_type
 
@@ -60,7 +60,7 @@ resource "aws_launch_template" "flask" {
 }
 
 resource "aws_launch_template" "react" {
-  name_prefix   = "${var.project_name}-react-"
+  name          = "${var.project_name}-react-lt"
   image_id      = data.aws_ssm_parameter.al2023_ami.value
   instance_type = var.react_instance_type
 
