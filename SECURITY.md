@@ -24,7 +24,7 @@ Security posture, hardening controls, secrets handling, and operator guidance fo
 
 - [ ] Export `GHCR_PAT` / `TF_VAR_ghcr_pat` — never commit or log
 - [ ] Use **Terraform** (not `deploy-aws.sh`) for production-like environments
-- [ ] `enable_ssh_between_tiers = false` (default in Terraform dev variables)
+- [ ] `enable_ssh_between_tiers = false` in production unless tier SSH is required (default **true** for Module 1 lab)
 - [ ] Set `TF_VAR_api_key` for production chat protection (stored in SSM)
 - [ ] Set `REQUIRE_API_KEY_IN_PRODUCTION=true` on Flask when using API key
 - [ ] Build frontend with correct `ALB_DNS` (`push-frontend.sh` requires it)

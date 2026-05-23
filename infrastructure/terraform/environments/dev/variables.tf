@@ -39,8 +39,8 @@ variable "single_nat_gateway" {
 
 variable "enable_ssh_between_tiers" {
   type        = bool
-  description = "Allow SSH from React SG to Flask SG. Prefer SSM Session Manager (default false)."
-  default     = false
+  description = "Allow SSH from React SG to Flask SG (Code Platoon challenge). SSM Session Manager also available."
+  default     = true
 }
 
 variable "ghcr_username" {

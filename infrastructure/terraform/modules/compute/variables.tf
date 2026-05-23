@@ -51,6 +51,12 @@ variable "flask_instance_type" {
   default = "t3.large"
 }
 
+variable "flask_root_volume_size_gb" {
+  type        = number
+  description = "Root EBS volume size for Flask/Ollama instances (Ollama models need >= 20 GB)."
+  default     = 30
+}
+
 variable "react_instance_type" {
   type    = string
   default = "t3.small"
