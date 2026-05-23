@@ -1,4 +1,7 @@
 # https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+#
+# Keeps dependency PR volume low: group minor/patch updates, ignore semver-major
+# until reviewed manually (major bumps often need code changes).
 
 version: 2
 updates:
@@ -7,43 +10,58 @@ updates:
     schedule:
       interval: weekly
       day: monday
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 3
     groups:
-      python-minor-patch:
+      python-dependencies:
         patterns:
           - "*"
         update-types:
           - minor
           - patch
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: npm
     directory: /frontend
     schedule:
       interval: weekly
       day: monday
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 3
     groups:
-      npm-minor-patch:
+      npm-dependencies:
         patterns:
           - "*"
         update-types:
           - minor
           - patch
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: docker
     directory: /backend
     schedule:
-      interval: weekly
+      interval: monthly
+    open-pull-requests-limit: 1
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: docker
     directory: /frontend
     schedule:
-      interval: weekly
+      interval: monthly
+    open-pull-requests-limit: 1
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: weekly
+      interval: monthly
+    open-pull-requests-limit: 2
     groups:
       github-actions:
         patterns:
