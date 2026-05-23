@@ -1,0 +1,93 @@
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Deployment target"
+        required: true
+        type: choice
+        default: aws-rolling
+        options:
+          - aws-rolling
+          - dry-run
+      alb_dns:
+        description: "ALB DNS hostname (no scheme, no trailing slash)"
+        required: false
+        type: string
+      aws_region:
+        description: "AWS region"
+        required: false
+        default: us-east-1
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deploy-${{ github.event.inputs.target }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to AWS
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.target == 'dry-run' && 'development' || 'production' }}
+    env:
+      AWS_REGION: ${{ inputs.aws_region || vars.AWS_REGION || 'us-east-1' }}
+      ALB_DNS: ${{ inputs.alb_dns || vars.ALB_DNS }}
+      GHCR_USERNAME: ${{ vars.GHCR_USERNAME || github.repository_owner }}
+      DEPLOY_TARGET: ${{ inputs.target }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Dry run
+        if: inputs.target == 'dry-run'
+        run: |
+          echo "Dry run — no AWS changes."
+          echo "Would deploy with ALB_DNS=${ALB_DNS:-unset} in region ${AWS_REGION}."
+
+      - name: Validate deploy inputs
+        if: inputs.target != 'dry-run'
+        run: |
+          set -euo pipefail
+          if [[ -z "${ALB_DNS}" ]]; then
+            echo "::error::Set repository variable ALB_DNS or pass alb_dns when dispatching this workflow."
+            exit 1
+          fi
+
+      - name: Configure AWS credentials
+        if: inputs.target != 'dry-run'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Install deployment dependencies
+        if: inputs.target != 'dry-run'
+        run: sudo apt-get update && sudo apt-get install -y gettext-base
+
+      - name: Rolling ASG update (update-phase4)
+        if: inputs.target != 'dry-run'
+        env:
+          ALB_DNS: ${{ env.ALB_DNS }}
+          GHCR_USERNAME: ${{ env.GHCR_USERNAME }}
+        run: |
+          set -euo pipefail
+          chmod +x infrastructure/update-phase4.sh
+          ./infrastructure/update-phase4.sh
+
+      - name: Deployment summary
+        if: always()
+        run: |
+          {
+            echo "## Deploy workflow"
+            echo ""
+            echo "| Field | Value |"
+            echo "|-------|-------|"
+            echo "| Target | ${DEPLOY_TARGET} |"
+            echo "| Region | ${AWS_REGION} |"
+            echo "| ALB DNS | ${ALB_DNS:-*(not set)*} |"
+          } >> "$GITHUB_STEP_SUMMARY"

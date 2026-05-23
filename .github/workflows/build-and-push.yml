@@ -1,0 +1,138 @@
+name: Build and Push Images
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      vite_api_url:
+        description: "VITE_API_URL for frontend image (e.g. http://my-alb.us-east-1.elb.amazonaws.com)"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+  attestations: write
+  id-token: write
+  security-events: write
+
+concurrency:
+  group: build-push-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  PLATFORMS: linux/amd64,linux/arm64
+
+jobs:
+  build-and-push:
+    name: Build ${{ matrix.component }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - component: backend
+            context: backend
+            image: ollama-chat-backend
+            dockerfile: backend/Dockerfile
+          - component: frontend
+            context: frontend
+            image: ollama-chat-frontend
+            dockerfile: frontend/Dockerfile
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Lowercase registry owner
+        id: registry
+        run: echo "owner=$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve VITE_API_URL (frontend)
+        if: matrix.component == 'frontend'
+        id: vite
+        env:
+          INPUT_URL: ${{ inputs.vite_api_url }}
+          VAR_URL: ${{ vars.VITE_API_URL }}
+          ALB_DNS: ${{ vars.ALB_DNS }}
+        run: |
+          set -euo pipefail
+          url="${INPUT_URL:-${VAR_URL:-}}"
+          if [[ -z "$url" && -n "${ALB_DNS:-}" ]]; then
+            url="http://${ALB_DNS}"
+          fi
+          if [[ -z "$url" ]]; then
+            echo "::error::Set repository variable VITE_API_URL or ALB_DNS, or pass vite_api_url when dispatching this workflow."
+            exit 1
+          fi
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-qemu-action@v3
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/metadata-action@v5
+        id: meta
+        with:
+          images: ${{ env.REGISTRY }}/${{ steps.registry.outputs.owner }}/${{ matrix.image }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=tag
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix=
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - uses: docker/build-push-action@v6
+        id: build
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          platforms: ${{ env.PLATFORMS }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: ${{ matrix.component == 'frontend' && format('VITE_API_URL={0}', steps.vite.outputs.url) || '' }}
+          cache-from: type=gha,scope=${{ matrix.component }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.component }}
+          provenance: true
+          sbom: true
+
+      - name: Trivy image scan
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ steps.registry.outputs.owner }}/${{ matrix.image }}@${{ steps.build.outputs.digest }}
+          format: sarif
+          output: trivy-image-${{ matrix.component }}.sarif
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+
+      - name: Upload Trivy SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        continue-on-error: true
+        with:
+          sarif_file: trivy-image-${{ matrix.component }}.sarif
+          category: trivy-image-${{ matrix.component }}
+
+  build-summary:
+    name: Build summary
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Summarize
+        run: |
+          if [[ "${{ needs.build-and-push.result }}" != "success" ]]; then
+            echo "::error::One or more image builds failed."
+            exit 1
+          fi
+          echo "Multi-arch images pushed to GHCR."

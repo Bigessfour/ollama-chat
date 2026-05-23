@@ -1,0 +1,27 @@
+aws_region  = "us-east-1"
+project_name = "ollama-chat"
+environment  = "dev"
+
+# Required — set via TF_VAR_ghcr_pat or -var-file (never commit real values)
+# ghcr_pat = "ghp_xxxxxxxx"
+# Optional — TF_VAR_api_key for /api/chat protection (stored in SSM SecureString)
+# api_key = "your-random-api-key"
+
+single_nat_gateway       = true
+enable_ssh_between_tiers = false
+
+flask_instance_type = "t3.large"
+react_instance_type = "t3.small"
+
+flask_asg_min     = 2
+flask_asg_desired = 2
+flask_asg_max     = 4
+
+react_asg_min     = 2
+react_asg_desired = 2
+react_asg_max     = 4
+
+# Observability (optional)
+# enable_observability       = true
+# log_retention_days         = 14
+# alarm_notification_email = "you@example.com"

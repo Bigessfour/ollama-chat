@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
+# VITE_API_URL is baked into the static bundle (public). Never put secrets in VITE_* — see SECURITY.md.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+GHCR_USERNAME="${GHCR_USERNAME:-bigessfour}"
 cd "$ROOT"
 
 if [[ -z "${GHCR_PAT:-}" ]]; then
@@ -14,13 +16,13 @@ if [[ -z "${ALB_DNS:-}" ]]; then
   exit 1
 fi
 
-echo "$GHCR_PAT" | docker login ghcr.io -u Bigessfour --password-stdin
+echo "$GHCR_PAT" | docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin
 docker buildx inspect multiarch >/dev/null 2>&1 && docker buildx use multiarch || docker buildx create --use --name multiarch
 
 docker buildx build \
   --platform linux/amd64,linux/arm64 \
-  --build-arg "VITE_API_BASE_URL=http://${ALB_DNS}" \
-  -t ghcr.io/bigessfour/ollama-chat-frontend:latest \
+  --build-arg "VITE_API_URL=http://${ALB_DNS}" \
+  -t "ghcr.io/${GHCR_USERNAME}/ollama-chat-frontend:latest" \
   --push ./frontend
 
 docker buildx imagetools inspect ghcr.io/bigessfour/ollama-chat-frontend:latest

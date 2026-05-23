@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Legacy one-shot deploy (NOT idempotent). Prefer Terraform: infrastructure/terraform/README.md
+# WARNING: This script does NOT create private-subnet NACLs. Use Terraform for defense-in-depth.
 set -euo pipefail
 
 REGION="${AWS_REGION:-us-east-1}"
@@ -6,8 +8,9 @@ export AWS_DEFAULT_REGION="$REGION"
 ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 
 if [[ -z "${GHCR_PAT:-}" ]]; then
-  echo "Warning: GHCR_PAT not set. SSM parameter will use placeholder; update before instances boot." >&2
-  GHCR_PAT="REPLACE_WITH_GITHUB_PAT_read_packages"
+  echo "Error: export GHCR_PAT (GitHub PAT with read:packages) before running deploy-aws.sh" >&2
+  echo "See SECURITY.md for secrets handling." >&2
+  exit 1
 fi
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -61,11 +64,38 @@ aws ec2 create-route --route-table-id "$PRIVATE_RT" --destination-cidr-block 0.0
 aws ec2 associate-route-table --route-table-id "$PRIVATE_RT" --subnet-id "$PRIVATE_1A"
 aws ec2 associate-route-table --route-table-id "$PRIVATE_RT" --subnet-id "$PRIVATE_1B"
 
+# --- Private subnet NACL (mirrors Terraform; Flask not reachable except via ALB paths) ---
+PRIVATE_NACL=$(aws ec2 create-network-acl --vpc-id "$VPC_ID" \
+  --query 'NetworkAcl.NetworkAclId' --output text)
+aws ec2 create-tags --resources "$PRIVATE_NACL" --tags Key=Name,Value=ollama-chat-private-nacl
+
+aws ec2 create-network-acl-entry --network-acl-id "$PRIVATE_NACL" --rule-number 50 \
+  --protocol tcp --port-range From=11434,To=11434 --cidr-block 0.0.0.0/0 --ingress --rule-action deny
+aws ec2 create-network-acl-entry --network-acl-id "$PRIVATE_NACL" --rule-number 100 \
+  --protocol tcp --port-range From=80,To=80 --cidr-block 10.0.1.0/24 --ingress --rule-action allow
+aws ec2 create-network-acl-entry --network-acl-id "$PRIVATE_NACL" --rule-number 101 \
+  --protocol tcp --port-range From=80,To=80 --cidr-block 10.0.2.0/24 --ingress --rule-action allow
+aws ec2 create-network-acl-entry --network-acl-id "$PRIVATE_NACL" --rule-number 102 \
+  --protocol tcp --port-range From=5000,To=5000 --cidr-block 10.0.1.0/24 --ingress --rule-action allow
+aws ec2 create-network-acl-entry --network-acl-id "$PRIVATE_NACL" --rule-number 103 \
+  --protocol tcp --port-range From=5000,To=5000 --cidr-block 10.0.2.0/24 --ingress --rule-action allow
+aws ec2 create-network-acl-entry --network-acl-id "$PRIVATE_NACL" --rule-number 110 \
+  --protocol tcp --port-range From=1024,To=65535 --cidr-block 10.0.0.0/16 --ingress --rule-action allow
+aws ec2 create-network-acl-entry --network-acl-id "$PRIVATE_NACL" --rule-number 100 \
+  --protocol -1 --cidr-block 0.0.0.0/0 --egress --rule-action allow
+
+for SUBNET_ID in "$PRIVATE_1A" "$PRIVATE_1B"; do
+  ASSOC_ID=$(aws ec2 describe-network-acls --filters "Name=association.subnet-id,Values=$SUBNET_ID" \
+    --query 'NetworkAcls[0].Associations[?SubnetId==`'"$SUBNET_ID"'`].NetworkAclAssociationId' \
+    --output text)
+  aws ec2 replace-network-acl-association --association-id "$ASSOC_ID" \
+    --network-acl-id "$PRIVATE_NACL"
+done
+
 # --- Security Groups ---
 ALB_SG=$(aws ec2 create-security-group --group-name ollama-chat-alb-sg \
   --description "ALB for ollama-chat" --vpc-id "$VPC_ID" --query GroupId --output text)
 aws ec2 authorize-security-group-ingress --group-id "$ALB_SG" --protocol tcp --port 80 --cidr 0.0.0.0/0
-aws ec2 authorize-security-group-ingress --group-id "$ALB_SG" --protocol tcp --port 443 --cidr 0.0.0.0/0
 
 REACT_SG=$(aws ec2 create-security-group --group-name ollama-chat-react-sg \
   --description "React nginx for ollama-chat" --vpc-id "$VPC_ID" --query GroupId --output text)
@@ -74,7 +104,6 @@ aws ec2 authorize-security-group-ingress --group-id "$REACT_SG" --protocol tcp -
 FLASK_SG=$(aws ec2 create-security-group --group-name ollama-chat-flask-sg \
   --description "Flask backend for ollama-chat" --vpc-id "$VPC_ID" --query GroupId --output text)
 aws ec2 authorize-security-group-ingress --group-id "$FLASK_SG" --protocol tcp --port 5000 --source-group "$ALB_SG"
-aws ec2 authorize-security-group-ingress --group-id "$FLASK_SG" --protocol tcp --port 22 --source-group "$REACT_SG"
 
 # --- IAM ---
 ROLE_NAME=ollama-chat-ec2-ssm-role
@@ -88,7 +117,7 @@ SSM_POLICY=$(cat <<EOF
   "Version": "2012-10-17",
   "Statement": [{
     "Effect": "Allow",
-    "Action": ["ssm:GetParameter", "ssm:GetParameters"],
+    "Action": ["ssm:GetParameter"],
     "Resource": "arn:aws:ssm:${REGION}:${ACCOUNT_ID}:parameter/ollama-chat/ghcr-pat"
   }]
 }
@@ -105,7 +134,7 @@ aws ssm put-parameter --name /ollama-chat/ghcr-pat --type SecureString --value "
 
 # --- ALB Target Groups ---
 FLASK_TG=$(aws elbv2 create-target-group --name ollama-chat-flask-tg --protocol HTTP --port 5000 \
-  --vpc-id "$VPC_ID" --health-check-path /api/health --matcher HttpCode=200 \
+  --vpc-id "$VPC_ID" --health-check-path /api/ready --matcher HttpCode=200 \
   --query 'TargetGroups[0].TargetGroupArn' --output text)
 REACT_TG=$(aws elbv2 create-target-group --name ollama-chat-react-tg --protocol HTTP --port 80 \
   --vpc-id "$VPC_ID" --health-check-path / --matcher HttpCode=200 \
@@ -129,35 +158,56 @@ aws elbv2 create-rule --listener-arn "$LISTENER_ARN" --priority 1 \
 AMI_ID=$(aws ssm get-parameters --names /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64 \
   --query 'Parameters[0].Value' --output text)
 
-FLASK_UD_B64=$(base64 < "$ROOT/infrastructure/user-data/flask.sh" | tr -d '\n')
-REACT_UD_B64=$(base64 < "$ROOT/infrastructure/user-data/react.sh" | tr -d '\n')
+GHCR_USERNAME="${GHCR_USERNAME:-bigessfour}"
+export ghcr_username="$GHCR_USERNAME"
+export cors_origins="http://${ALB_DNS}"
+export backend_image="ghcr.io/${GHCR_USERNAME}/ollama-chat-backend:latest"
+export frontend_image="ghcr.io/${GHCR_USERNAME}/ollama-chat-frontend:latest"
 
-cat > /tmp/flask-lt.json <<EOF
+FLASK_UD_B64=$(envsubst '${ghcr_username} ${cors_origins} ${backend_image}' \
+  < "$ROOT/infrastructure/user-data/flask.sh" | base64 | tr -d '\n')
+REACT_UD_B64=$(envsubst '${ghcr_username} ${frontend_image}' \
+  < "$ROOT/infrastructure/user-data/react.sh" | base64 | tr -d '\n')
+
+FLASK_LT_JSON=$(mktemp)
+REACT_LT_JSON=$(mktemp)
+chmod 600 "$FLASK_LT_JSON" "$REACT_LT_JSON"
+trap 'rm -f "$FLASK_LT_JSON" "$REACT_LT_JSON"' EXIT
+
+cat > "$FLASK_LT_JSON" <<EOF
 {
   "ImageId": "$AMI_ID",
   "InstanceType": "t3.large",
   "IamInstanceProfile": {"Name": "$ROLE_NAME"},
   "SecurityGroupIds": ["$FLASK_SG"],
-  "UserData": "$FLASK_UD_B64"
+  "UserData": "$FLASK_UD_B64",
+  "MetadataOptions": {
+    "HttpTokens": "required",
+    "HttpPutResponseHopLimit": 1
+  }
 }
 EOF
 
-cat > /tmp/react-lt.json <<EOF
+cat > "$REACT_LT_JSON" <<EOF
 {
   "ImageId": "$AMI_ID",
   "InstanceType": "t3.small",
   "IamInstanceProfile": {"Name": "$ROLE_NAME"},
   "SecurityGroupIds": ["$REACT_SG"],
-  "UserData": "$REACT_UD_B64"
+  "UserData": "$REACT_UD_B64",
+  "MetadataOptions": {
+    "HttpTokens": "required",
+    "HttpPutResponseHopLimit": 1
+  }
 }
 EOF
 
 aws ec2 create-launch-template --launch-template-name ollama-chat-flask-lt \
-  --launch-template-data file:///tmp/flask-lt.json \
+  --launch-template-data file://"$FLASK_LT_JSON" \
   --query 'LaunchTemplate.LaunchTemplateId' --output text
 
 aws ec2 create-launch-template --launch-template-name ollama-chat-react-lt \
-  --launch-template-data file:///tmp/react-lt.json \
+  --launch-template-data file://"$REACT_LT_JSON" \
   --query 'LaunchTemplate.LaunchTemplateId' --output text
 
 # --- Auto Scaling Groups ---
@@ -187,6 +237,7 @@ EOF
 echo ""
 echo "=== Deployment complete ==="
 echo "ALB DNS: http://$ALB_DNS"
+echo "Ready:   http://$ALB_DNS/api/ready"
 echo "Health:  http://$ALB_DNS/api/health"
 echo ""
 echo "Next: export GHCR_PAT=... ALB_DNS=$ALB_DNS && ./infrastructure/push-frontend.sh"

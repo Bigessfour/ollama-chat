@@ -1,0 +1,9 @@
+target-version = "py311"
+line-length = 100
+src = ["app", "config", "routes", "services", "utils", "tests"]
+
+[lint]
+select = ["E", "F", "UP", "B"]
+
+[lint.per-file-ignores]
+"tests/**" = ["B008"]

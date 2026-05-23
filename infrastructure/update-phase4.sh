@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Rolling LT update — user-data is templated; ALB_DNS required for Flask CORS.
 set -euo pipefail
 
 REGION="${AWS_REGION:-us-east-1}"
@@ -19,8 +20,21 @@ REACT_ASG=ollama-chat-react-asg
 
 echo "==> Phase 4 update in $REGION"
 
-FLASK_UD_B64=$(base64 < "$ROOT/infrastructure/user-data/flask.sh" | tr -d '\n')
-REACT_UD_B64=$(base64 < "$ROOT/infrastructure/user-data/react.sh" | tr -d '\n')
+if [[ -z "${ALB_DNS:-}" ]]; then
+  echo "Error: ALB_DNS is required for Flask CORS. Source $STATE_FILE or export ALB_DNS." >&2
+  exit 1
+fi
+
+GHCR_USERNAME="${GHCR_USERNAME:-bigessfour}"
+export ghcr_username="$GHCR_USERNAME"
+export cors_origins="http://${ALB_DNS}"
+export backend_image="ghcr.io/${GHCR_USERNAME}/ollama-chat-backend:latest"
+export frontend_image="ghcr.io/${GHCR_USERNAME}/ollama-chat-frontend:latest"
+
+FLASK_UD_B64=$(envsubst '${ghcr_username} ${cors_origins} ${backend_image}' \
+  < "$ROOT/infrastructure/user-data/flask.sh" | base64 | tr -d '\n')
+REACT_UD_B64=$(envsubst '${ghcr_username} ${frontend_image}' \
+  < "$ROOT/infrastructure/user-data/react.sh" | base64 | tr -d '\n')
 
 FLASK_LT_DATA=$(aws ec2 describe-launch-template-versions \
   --launch-template-name "$FLASK_LT" --versions '$Latest' \
@@ -30,25 +44,25 @@ REACT_LT_DATA=$(aws ec2 describe-launch-template-versions \
   --launch-template-name "$REACT_LT" --versions '$Latest' \
   --query 'LaunchTemplateVersions[0].LaunchTemplateData' --output json)
 
-cat > /tmp/flask-lt-phase4.json <<EOF
-$(echo "$FLASK_LT_DATA" | jq --arg ud "$FLASK_UD_B64" '.UserData = $ud')
-EOF
+FLASK_LT_JSON=$(mktemp)
+REACT_LT_JSON=$(mktemp)
+chmod 600 "$FLASK_LT_JSON" "$REACT_LT_JSON"
+trap 'rm -f "$FLASK_LT_JSON" "$REACT_LT_JSON"' EXIT
 
-cat > /tmp/react-lt-phase4.json <<EOF
-$(echo "$REACT_LT_DATA" | jq --arg ud "$REACT_UD_B64" '.UserData = $ud')
-EOF
+echo "$FLASK_LT_DATA" | jq --arg ud "$FLASK_UD_B64" '.UserData = $ud' > "$FLASK_LT_JSON"
+echo "$REACT_LT_DATA" | jq --arg ud "$REACT_UD_B64" '.UserData = $ud' > "$REACT_LT_JSON"
 
 echo "==> Creating new launch template versions"
 aws ec2 create-launch-template-version \
   --launch-template-name "$FLASK_LT" \
   --source-version '$Latest' \
-  --launch-template-data file:///tmp/flask-lt-phase4.json \
+  --launch-template-data file://"$FLASK_LT_JSON" \
   --query 'LaunchTemplateVersion.VersionNumber' --output text
 
 aws ec2 create-launch-template-version \
   --launch-template-name "$REACT_LT" \
   --source-version '$Latest' \
-  --launch-template-data file:///tmp/react-lt-phase4.json \
+  --launch-template-data file://"$REACT_LT_JSON" \
   --query 'LaunchTemplateVersion.VersionNumber' --output text
 
 FLASK_VER=$(aws ec2 describe-launch-template-versions \
@@ -92,9 +106,8 @@ echo ""
 echo "=== Phase 4 rollout started ==="
 echo "Flask LT version:  $FLASK_VER  | refresh: $FLASK_REFRESH"
 echo "React LT version:  $REACT_VER  | refresh: $REACT_REFRESH"
-if [[ -n "${ALB_DNS:-}" ]]; then
-  echo "ALB DNS: http://$ALB_DNS"
-  echo "Health:  http://$ALB_DNS/api/health"
-fi
+echo "ALB DNS: http://$ALB_DNS"
+echo "Ready:   http://$ALB_DNS/api/ready"
+echo "Health:  http://$ALB_DNS/api/health"
 echo ""
 echo "Monitor: aws autoscaling describe-instance-refreshes --auto-scaling-group-name $FLASK_ASG --region $REGION"

@@ -1,0 +1,59 @@
+{
+  "agent": {
+    "metrics_collection_interval": 60,
+    "run_as_user": "root"
+  },
+  "logs": {
+    "logs_collected": {
+      "files": {
+        "collect_list": [
+          {
+            "file_path": "/var/log/ollama-chat-flask.log",
+            "log_group_name": "/ollama-chat/flask/bootstrap",
+            "log_stream_name": "__INSTANCE_ID__/bootstrap",
+            "timezone": "UTC"
+          },
+          {
+            "file_path": "/var/log/ollama-pull.log",
+            "log_group_name": "/ollama-chat/flask/ollama-pull",
+            "log_stream_name": "__INSTANCE_ID__/ollama-pull",
+            "timezone": "UTC"
+          },
+          {
+            "file_path": "/var/lib/docker/containers/*/*-json.log",
+            "log_group_name": "/ollama-chat/flask/app",
+            "log_stream_name": "__INSTANCE_ID__/docker",
+            "timezone": "UTC"
+          }
+        ]
+      }
+    }
+  },
+  "metrics": {
+    "namespace": "OllamaChat/EC2",
+    "append_dimensions": {
+      "InstanceId": "__INSTANCE_ID__"
+    },
+    "metrics_collected": {
+      "cpu": {
+        "measurement": [
+          "cpu_usage_idle",
+          "cpu_usage_iowait",
+          "cpu_usage_user",
+          "cpu_usage_system"
+        ],
+        "metrics_collection_interval": 60,
+        "totalcpu": false
+      },
+      "disk": {
+        "measurement": ["used_percent"],
+        "metrics_collection_interval": 60,
+        "resources": ["*"]
+      },
+      "mem": {
+        "measurement": ["mem_used_percent"],
+        "metrics_collection_interval": 60
+      }
+    }
+  }
+}
