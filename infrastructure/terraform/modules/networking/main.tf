@@ -206,6 +206,18 @@ resource "aws_network_acl_rule" "private_inbound_ssh_az2" {
   to_port        = 22
 }
 
+# Return traffic from NAT (dnf, GHCR, Ollama pulls) uses ephemeral ports from the internet.
+resource "aws_network_acl_rule" "private_inbound_ephemeral_internet" {
+  network_acl_id = aws_network_acl.private.id
+  rule_number    = 108
+  egress         = false
+  protocol       = "tcp"
+  rule_action    = "allow"
+  cidr_block     = "0.0.0.0/0"
+  from_port      = 1024
+  to_port        = 65535
+}
+
 resource "aws_network_acl_rule" "private_inbound_ephemeral" {
   network_acl_id = aws_network_acl.private.id
   rule_number    = 110
