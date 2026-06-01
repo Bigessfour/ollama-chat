@@ -1,0 +1,21 @@
+# Personal AWS account — minimal cost demo sizing (1 Flask + 1 React)
+# Copy to terraform.tfvars and set secrets via environment:
+#   export TF_VAR_ghcr_pat='ghp_...'
+
+aws_region               = "us-east-1"
+project_name             = "ollama-chat"
+environment              = "dev"
+single_nat_gateway       = true
+enable_ssh_between_tiers = true
+
+flask_instance_type = "t3.large"
+react_instance_type = "t3.small"
+
+flask_asg_min     = 1
+flask_asg_desired = 1
+flask_asg_max     = 2
+react_asg_min     = 1
+react_asg_desired = 1
+react_asg_max     = 2
+
+ghcr_username = "Bigessfour"

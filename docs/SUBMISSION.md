@@ -25,14 +25,17 @@ Copy values from `terraform output` or `.aws-deploy-state` after deploy. Attach 
 
 | Field | Your value |
 |-------|------------|
-| Deployment date | _YYYY-MM-DD_ |
-| AWS region | e.g. `us-east-1` |
-| ALB DNS name | `terraform output -raw alb_dns_name` |
-| VPC ID | `terraform output -raw vpc_id` |
-| Demo URL | `http://<ALB_DNS>/` |
-| GHCR backend | `ghcr.io/<github-org>/ollama-chat-backend:latest` |
-| GHCR frontend | `ghcr.io/<github-org>/ollama-chat-frontend:latest` |
+| Deployment date | 2026-06-01 |
+| AWS region | `us-east-1` |
+| AWS account | `570912405222` (personal) |
+| ALB DNS name | `ollama-chat-alb-1204074168.us-east-1.elb.amazonaws.com` |
+| VPC ID | `vpc-045ed361e5238db51` |
+| Demo URL | http://ollama-chat-alb-1204074168.us-east-1.elb.amazonaws.com/ |
+| GHCR backend | `ghcr.io/bigessfour/ollama-chat-backend:latest` |
+| GHCR frontend | `ghcr.io/bigessfour/ollama-chat-frontend:latest` |
 | GitHub repo | https://github.com/Bigessfour/ollama-chat |
+| Terraform path | `infrastructure/terraform/environments/dev` |
+| ASG sizing | Minimal: 1 Flask + 1 React (`terraform.tfvars.personal-minimal.example`) |
 
 **Note on public access:** Both tiers run in **private subnets** behind the ALB (stronger than the starter brief’s public React tier). Users and the SPA reach the app at the **ALB DNS name**, not a React instance public IP.
 
