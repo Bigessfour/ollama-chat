@@ -41,7 +41,7 @@ jobs:
       DEPLOY_TARGET: ${{ inputs.target }}
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Dry run
         if: inputs.target == 'dry-run'
