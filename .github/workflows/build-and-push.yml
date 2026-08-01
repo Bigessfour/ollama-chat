@@ -44,7 +44,7 @@ jobs:
             dockerfile: frontend/Dockerfile
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Lowercase registry owner
         id: registry
@@ -116,7 +116,7 @@ jobs:
           ignore-unfixed: true
 
       - name: Upload Trivy SARIF
-        uses: github/codeql-action/upload-sarif@v4
+        uses: github/codeql-action/upload-sarif@v4.37.3
         if: always()
         continue-on-error: true
         with:
